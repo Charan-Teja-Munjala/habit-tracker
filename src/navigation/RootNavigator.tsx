@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useUserStore } from '../store/userStore';
 
@@ -27,8 +28,10 @@ const TAB_ICONS: Record<string, { outline: string; filled: string }> = {
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
     const theme = useTheme();
+    const insets = useSafeAreaInsets();
+    const bottomPad = Math.max(insets.bottom, 8);
     return (
-        <View style={[styles.tabBar, { backgroundColor: theme.colors.tabBar, borderTopColor: theme.colors.border }]}>
+        <View style={[styles.tabBar, { backgroundColor: theme.colors.tabBar, borderTopColor: theme.colors.border, paddingBottom: bottomPad }]}>
             {state.routes.map((route: any, index: number) => {
                 const isFocused = state.index === index;
                 const { outline, filled } = TAB_ICONS[route.name] ?? { outline: 'ellipse-outline', filled: 'ellipse' };
@@ -101,7 +104,7 @@ export function RootNavigator() {
 }
 
 const styles = StyleSheet.create({
-    tabBar: { flexDirection: 'row', paddingBottom: 22, paddingTop: 10, borderTopWidth: 1 },
+    tabBar: { flexDirection: 'row', paddingTop: 10, borderTopWidth: 1 },
     tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 4, position: 'relative' },
     activeBackground: { position: 'absolute', top: 0, left: 4, right: 4, bottom: 0, borderRadius: 10 },
     tabLabel: { fontSize: 10, fontWeight: '600', marginTop: 3 },

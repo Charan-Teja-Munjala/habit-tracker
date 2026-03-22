@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -7,6 +7,8 @@ import {
     Switch,
     TouchableOpacity,
     Alert,
+    Modal,
+    FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,7 +26,10 @@ export function ProfileScreen({ navigation }: Props) {
     const profile = useUserStore((s) => s.profile);
     const themeMode = useUserStore((s) => s.themeMode);
     const toggleTheme = useUserStore((s) => s.toggleTheme);
+    const notifSettings = useUserStore((s) => s.notificationSettings);
+    const updateNotifSettings = useUserStore((s) => s.updateNotificationSettings);
     const { habits } = useHabitStore();
+    const [showTimePicker, setShowTimePicker] = useState(false);
 
     const totalCompletions = habits.reduce((s, h) => s + h.completedDates.length, 0);
     const maxStreak = Math.max(...habits.map((h) => h.longestStreak), 0);
@@ -38,6 +43,13 @@ export function ProfileScreen({ navigation }: Props) {
                 { text: 'Reset', style: 'destructive', onPress: () => { } },
             ]
         );
+    };
+
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const formatHour = (h: number) => {
+        const suffix = h < 12 ? 'AM' : 'PM';
+        const display = h === 0 ? 12 : h > 12 ? h - 12 : h;
+        return `${display}:00 ${suffix}`;
     };
 
     return (
@@ -59,7 +71,7 @@ export function ProfileScreen({ navigation }: Props) {
                     </Text>
                 </View>
                 <Text style={styles.heroName}>{profile.name}</Text>
-                <View style={[styles.levelPill]}>
+                <View style={styles.levelPill}>
                     <Text style={styles.levelPillText}>
                         Lv {profile.level} · {getLevelTitle(profile.level)}
                     </Text>
@@ -71,8 +83,8 @@ export function ProfileScreen({ navigation }: Props) {
                 <XPBar xp={profile.totalXP} />
             </View>
 
-            {/* Stats */}
-            <View style={[styles.statsGrid]}>
+            {/* Stats Grid */}
+            <View style={styles.statsGrid}>
                 {[
                     { label: 'Total Habits', value: habits.length, icon: 'list', color: theme.colors.primary },
                     { label: 'Completions', value: totalCompletions, icon: 'checkmark-circle', color: theme.colors.success },
@@ -89,7 +101,7 @@ export function ProfileScreen({ navigation }: Props) {
                 ))}
             </View>
 
-            {/* Info */}
+            {/* Account Info */}
             <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Account</Text>
                 <View style={styles.infoRow}>
@@ -104,7 +116,75 @@ export function ProfileScreen({ navigation }: Props) {
                 </View>
             </View>
 
-            {/* Settings */}
+            {/* Notifications */}
+            <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>🔔 Notifications</Text>
+
+                <View style={styles.settingRow}>
+                    <View style={styles.settingLeft}>
+                        <Ionicons name="alarm-outline" size={20} color={theme.colors.primary} />
+                        <View>
+                            <Text style={[styles.settingLabel, { color: theme.colors.textPrimary }]}>Daily Reminder</Text>
+                            <Text style={[styles.settingSubLabel, { color: theme.colors.textSecondary }]}>
+                                Every day at {formatHour(notifSettings.dailyReminderTime.hour)}
+                            </Text>
+                        </View>
+                    </View>
+                    <Switch
+                        value={notifSettings.dailyReminderEnabled}
+                        onValueChange={(v) => updateNotifSettings({ dailyReminderEnabled: v })}
+                        trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                        thumbColor="#fff"
+                    />
+                </View>
+
+                {notifSettings.dailyReminderEnabled && (
+                    <TouchableOpacity
+                        style={[styles.timeRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}
+                        onPress={() => setShowTimePicker(true)}
+                    >
+                        <Ionicons name="time-outline" size={16} color={theme.colors.textSecondary} />
+                        <Text style={[styles.timeText, { color: theme.colors.textPrimary }]}>
+                            Change time: {formatHour(notifSettings.dailyReminderTime.hour)}
+                        </Text>
+                        <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+                )}
+
+                <View style={[styles.settingRow, { marginTop: 12 }]}>
+                    <View style={styles.settingLeft}>
+                        <Ionicons name="flame-outline" size={20} color={theme.colors.secondary} />
+                        <View>
+                            <Text style={[styles.settingLabel, { color: theme.colors.textPrimary }]}>Evening Streak Alert</Text>
+                            <Text style={[styles.settingSubLabel, { color: theme.colors.textSecondary }]}>Remind at 9 PM if incomplete</Text>
+                        </View>
+                    </View>
+                    <Switch
+                        value={notifSettings.eveningAlertEnabled}
+                        onValueChange={(v) => updateNotifSettings({ eveningAlertEnabled: v })}
+                        trackColor={{ false: theme.colors.border, true: theme.colors.secondary }}
+                        thumbColor="#fff"
+                    />
+                </View>
+
+                <View style={[styles.settingRow, { marginTop: 12 }]}>
+                    <View style={styles.settingLeft}>
+                        <Ionicons name="trophy-outline" size={20} color={theme.colors.warning} />
+                        <View>
+                            <Text style={[styles.settingLabel, { color: theme.colors.textPrimary }]}>Achievement Alerts</Text>
+                            <Text style={[styles.settingSubLabel, { color: theme.colors.textSecondary }]}>Notify when you unlock badges</Text>
+                        </View>
+                    </View>
+                    <Switch
+                        value={notifSettings.achievementsEnabled}
+                        onValueChange={(v) => updateNotifSettings({ achievementsEnabled: v })}
+                        trackColor={{ false: theme.colors.border, true: theme.colors.warning }}
+                        thumbColor="#fff"
+                    />
+                </View>
+            </View>
+
+            {/* App Settings */}
             <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Settings</Text>
                 <View style={styles.settingRow}>
@@ -131,6 +211,45 @@ export function ProfileScreen({ navigation }: Props) {
             </TouchableOpacity>
 
             <View style={{ height: 50 }} />
+
+            {/* Hour picker modal */}
+            <Modal visible={showTimePicker} transparent animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalCard, { backgroundColor: theme.colors.card }]}>
+                        <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>Pick reminder time</Text>
+                        <FlatList
+                            data={hours}
+                            keyExtractor={(h) => String(h)}
+                            style={{ maxHeight: 300 }}
+                            renderItem={({ item: h }) => (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.hourRow,
+                                        h === notifSettings.dailyReminderTime.hour && { backgroundColor: theme.colors.primary + '20' },
+                                    ]}
+                                    onPress={() => {
+                                        updateNotifSettings({ dailyReminderTime: { hour: h, minute: 0 } });
+                                        setShowTimePicker(false);
+                                    }}
+                                >
+                                    <Text style={[
+                                        styles.hourText,
+                                        { color: h === notifSettings.dailyReminderTime.hour ? theme.colors.primary : theme.colors.textPrimary },
+                                    ]}>
+                                        {formatHour(h)}
+                                    </Text>
+                                    {h === notifSettings.dailyReminderTime.hour && (
+                                        <Ionicons name="checkmark" size={18} color={theme.colors.primary} />
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                        />
+                        <TouchableOpacity onPress={() => setShowTimePicker(false)} style={styles.cancelBtn}>
+                            <Text style={{ color: theme.colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     );
 }
@@ -157,6 +276,15 @@ const styles = StyleSheet.create({
     settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
     settingLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     settingLabel: { fontSize: 15, fontWeight: '500' },
+    settingSubLabel: { fontSize: 12, marginTop: 1 },
+    timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginLeft: 30, padding: 10, borderRadius: 10, borderWidth: 1 },
+    timeText: { flex: 1, fontSize: 14, fontWeight: '500' },
     dangerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 16, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5 },
     dangerText: { fontSize: 15, fontWeight: '600' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    modalCard: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
+    hourRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10, marginBottom: 4 },
+    hourText: { fontSize: 16, fontWeight: '500' },
+    cancelBtn: { alignItems: 'center', paddingTop: 16 },
 });

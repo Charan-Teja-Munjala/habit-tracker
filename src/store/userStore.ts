@@ -6,10 +6,18 @@ import { levelFromXP } from '../utils/xpUtils';
 import { ACHIEVEMENTS } from '../constants/habits';
 import { TODAY } from '../utils/dateUtils';
 
+interface NotificationSettings {
+    dailyReminderEnabled: boolean;
+    dailyReminderTime: { hour: number; minute: number };
+    eveningAlertEnabled: boolean;
+    achievementsEnabled: boolean;
+}
+
 interface UserStore {
     profile: UserProfile;
     themeMode: 'dark' | 'light';
     hasOnboarded: boolean;
+    notificationSettings: NotificationSettings;
 
     // Actions
     initProfile: (name: string) => void;
@@ -19,6 +27,7 @@ interface UserStore {
     toggleTheme: () => void;
     useStreakFreeze: () => boolean;
     checkAchievements: (totalCompletions: number, maxStreak: number, totalHabits: number) => string[];
+    updateNotificationSettings: (updates: Partial<NotificationSettings>) => void;
 }
 
 const defaultProfile: UserProfile = {
@@ -37,6 +46,12 @@ export const useUserStore = create<UserStore>()(
             profile: defaultProfile,
             themeMode: 'dark',
             hasOnboarded: false,
+            notificationSettings: {
+                dailyReminderEnabled: true,
+                dailyReminderTime: { hour: 8, minute: 0 },
+                eveningAlertEnabled: true,
+                achievementsEnabled: true,
+            },
 
             initProfile: (name) => {
                 set({
@@ -79,6 +94,12 @@ export const useUserStore = create<UserStore>()(
             toggleTheme: () => {
                 set((state) => ({
                     themeMode: state.themeMode === 'dark' ? 'light' : 'dark',
+                }));
+            },
+
+            updateNotificationSettings: (updates) => {
+                set((state) => ({
+                    notificationSettings: { ...state.notificationSettings, ...updates },
                 }));
             },
 
