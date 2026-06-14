@@ -13,8 +13,6 @@ enableScreens();
 
 function AppContent() {
   const theme = useTheme();
-  // Registers for push notifications and handles deep-link on tap
-  useNotifications();
   return (
     <>
       <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />

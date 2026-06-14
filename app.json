@@ -2,7 +2,7 @@
   "expo": {
     "name": "Habit Tracker",
     "slug": "habit-tracker",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -21,12 +21,22 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D0F1E"
       },
-      "package": "com.teja001.habittracker",
+      "package": "com.teja001.habittrackerv2",
+      "versionCode": 3,
       "newArchEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0D0F1E"
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "7f191204-ca86-4e3c-9223-7851e3597522"

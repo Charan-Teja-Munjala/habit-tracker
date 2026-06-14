@@ -7,20 +7,23 @@ import {
     calculateLongestStreak,
 } from '../utils/streakUtils';
 import { TODAY } from '../utils/dateUtils';
+import { levelFromXP } from '../utils/xpUtils';
 
 interface HabitStore {
     habits: Habit[];
     isLoading: boolean;
 
     // CRUD
-    addHabit: (habit: Omit<Habit, 'id' | 'completedDates' | 'streak' | 'longestStreak' | 'createdAt'>) => string;
+    addHabit: (habit: Omit<Habit, 'id' | 'completedDates' | 'streak' | 'longestStreak' | 'createdAt' | 'notes'>) => string;
     editHabit: (id: string, updates: Partial<Habit>) => void;
     deleteHabit: (id: string) => void;
+    archiveHabit: (id: string) => void;
     reorderHabits: (from: number, to: number) => void;
 
     // Completion
-    markComplete: (id: string) => { xpEarned: number; newStreak: number; leveledUp: boolean };
+    markComplete: (id: string, currentXP: number, note?: string) => { xpEarned: number; newStreak: number; leveledUp: boolean; newLevel: number };
     unmarkComplete: (id: string) => void;
+    addNote: (id: string, date: string, note: string) => void;
 
     // Selectors
     getTodayStats: () => TodayStats;
@@ -41,6 +44,7 @@ export const useHabitStore = create<HabitStore>()(
                     ...habitData,
                     id,
                     completedDates: [],
+                    notes: {},
                     streak: 0,
                     longestStreak: 0,
                     createdAt: new Date().toISOString(),
@@ -63,6 +67,14 @@ export const useHabitStore = create<HabitStore>()(
                 }));
             },
 
+            archiveHabit: (id) => {
+                set((state) => ({
+                    habits: state.habits.map((h) =>
+                        h.id === id ? { ...h, archived: true } : h
+                    ),
+                }));
+            },
+
             reorderHabits: (from, to) => {
                 set((state) => {
                     const habits = [...state.habits];
@@ -72,11 +84,10 @@ export const useHabitStore = create<HabitStore>()(
                 });
             },
 
-            markComplete: (id) => {
+            markComplete: (id, currentXP, note) => {
                 const today = TODAY();
                 let xpEarned = 0;
                 let newStreak = 0;
-                let leveledUp = false;
 
                 set((state) => ({
                     habits: state.habits.map((h) => {
@@ -86,11 +97,20 @@ export const useHabitStore = create<HabitStore>()(
                         const longestStreak = calculateLongestStreak(newDates);
                         xpEarned = h.xpReward;
                         newStreak = streak;
-                        return { ...h, completedDates: newDates, streak, longestStreak };
+                        const newNotes = note
+                            ? { ...(h.notes ?? {}), [today]: note }
+                            : h.notes ?? {};
+                        return { ...h, completedDates: newDates, streak, longestStreak, notes: newNotes };
                     }),
                 }));
 
-                return { xpEarned, newStreak, leveledUp };
+                // Compute level-up based on currentXP passed in
+                const newXP = currentXP + xpEarned;
+                const oldLevel = levelFromXP(currentXP);
+                const newLevel = levelFromXP(newXP);
+                const leveledUp = newLevel > oldLevel;
+
+                return { xpEarned, newStreak, leveledUp, newLevel };
             },
 
             unmarkComplete: (id) => {
@@ -101,14 +121,25 @@ export const useHabitStore = create<HabitStore>()(
                         const newDates = h.completedDates.filter((d) => d !== today);
                         const streak = calculateCurrentStreak(newDates);
                         const longestStreak = calculateLongestStreak(newDates);
-                        return { ...h, completedDates: newDates, streak, longestStreak };
+                        const newNotes = { ...(h.notes ?? {}) };
+                        delete newNotes[today];
+                        return { ...h, completedDates: newDates, streak, longestStreak, notes: newNotes };
+                    }),
+                }));
+            },
+
+            addNote: (id, date, note) => {
+                set((state) => ({
+                    habits: state.habits.map((h) => {
+                        if (h.id !== id) return h;
+                        return { ...h, notes: { ...(h.notes ?? {}), [date]: note } };
                     }),
                 }));
             },
 
             getTodayStats: () => {
                 const today = TODAY();
-                const habits = get().getActiveHabits();
+                const habits = get().getTodayHabits();
                 const completed = habits.filter((h) => h.completedDates.includes(today));
                 const total = habits.length;
                 const totalXPEarned = completed.reduce((sum, h) => sum + h.xpReward, 0);
@@ -126,14 +157,16 @@ export const useHabitStore = create<HabitStore>()(
                 const today = new Date();
                 const dayOfWeek = today.getDay(); // 0=Sun
                 return get().habits.filter((h) => {
+                    if (h.archived) return false;
                     if (h.frequency === 'daily') return true;
-                    if (h.frequency === 'weekly') return dayOfWeek === 1; // Monday
+                    if (h.frequency === 'weekly') return h.customDays?.includes(dayOfWeek) ?? dayOfWeek === 1;
                     if (h.frequency === 'custom') return h.customDays?.includes(dayOfWeek) ?? false;
                     return true;
                 });
             },
 
-            getActiveHabits: () => get().getTodayHabits(),
+            // Returns all non-archived habits (regardless of schedule)
+            getActiveHabits: () => get().habits.filter((h) => !h.archived),
         }),
         {
             name: 'habit-store',

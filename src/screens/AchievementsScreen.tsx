@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../hooks/useTheme';
@@ -75,9 +75,10 @@ export function AchievementsScreen({ navigation }: Props) {
                 {filtered.map((achievement) => {
                     const unlocked = profile.achievements.includes(achievement.id);
                     const progress = getProgress(achievement);
+                    const scaleAnim = useRef(new Animated.Value(unlocked ? 1 : 0.97)).current;
 
                     return (
-                        <View
+                        <Animated.View
                             key={achievement.id}
                             style={[
                                 styles.badge,
@@ -85,6 +86,7 @@ export function AchievementsScreen({ navigation }: Props) {
                                     backgroundColor: theme.colors.card,
                                     borderColor: unlocked ? achievement.color + '60' : theme.colors.border,
                                     opacity: unlocked ? 1 : 0.65,
+                                    transform: [{ scale: scaleAnim }],
                                 },
                             ]}
                         >
@@ -150,7 +152,7 @@ export function AchievementsScreen({ navigation }: Props) {
                                     <Ionicons name="checkmark-circle" size={16} color={achievement.color} />
                                 </View>
                             )}
-                        </View>
+                        </Animated.View>
                     );
                 })}
             </View>

@@ -26,8 +26,10 @@ interface UserStore {
     unlockAchievement: (id: string) => void;
     toggleTheme: () => void;
     useStreakFreeze: () => boolean;
+    earnStreakFreeze: () => void;
     checkAchievements: (totalCompletions: number, maxStreak: number, totalHabits: number) => string[];
     updateNotificationSettings: (updates: Partial<NotificationSettings>) => void;
+    resetAllData: () => void;
 }
 
 const defaultProfile: UserProfile = {
@@ -108,6 +110,28 @@ export const useUserStore = create<UserStore>()(
                 if (profile.streakFreeze <= 0) return false;
                 set({ profile: { ...profile, streakFreeze: profile.streakFreeze - 1 } });
                 return true;
+            },
+
+            earnStreakFreeze: () => {
+                const { profile } = get();
+                set({ profile: { ...profile, streakFreeze: profile.streakFreeze + 1 } });
+            },
+
+            resetAllData: () => {
+                set({
+                    profile: {
+                        ...defaultProfile,
+                        id: `user_${Date.now()}`,
+                        joinedAt: new Date().toISOString(),
+                    },
+                    hasOnboarded: false,
+                    notificationSettings: {
+                        dailyReminderEnabled: true,
+                        dailyReminderTime: { hour: 8, minute: 0 },
+                        eveningAlertEnabled: true,
+                        achievementsEnabled: true,
+                    },
+                });
             },
 
             checkAchievements: (totalCompletions, maxStreak, totalHabits) => {

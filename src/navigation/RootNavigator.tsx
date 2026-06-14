@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useUserStore } from '../store/userStore';
+import { useNotifications } from '../hooks/useNotifications';
 
 import { HomeScreen } from '../screens/HomeScreen';
 import { AnalyticsScreen } from '../screens/AnalyticsScreen';
@@ -100,6 +101,8 @@ function OnboardingStack() {
  */
 export function RootNavigator() {
     const hasOnboarded = useUserStore((s) => s.hasOnboarded);
+    // Initialize push notifications system & listeners (safely inside NavigationContainer)
+    useNotifications();
     return hasOnboarded ? <MainStack /> : <OnboardingStack />;
 }
 

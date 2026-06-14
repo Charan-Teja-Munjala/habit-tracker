@@ -1,5 +1,5 @@
 export type Frequency = 'daily' | 'weekly' | 'custom';
-export type Category = 'Health' | 'Learning' | 'Fitness' | 'Mindset' | 'Work';
+export type Category = 'Health' | 'Learning' | 'Fitness' | 'Mindset' | 'Work' | 'Creative' | 'Social' | 'Finance';
 
 export interface Habit {
     id: string;
@@ -8,6 +8,7 @@ export interface Habit {
     frequency: Frequency;
     customDays?: number[]; // 0=Sunday..6=Saturday
     completedDates: string[]; // ISO YYYY-MM-DD
+    notes?: Record<string, string>; // date → note text
     streak: number;
     longestStreak: number;
     xpReward: number;
@@ -15,6 +16,8 @@ export interface Habit {
     icon: string;
     category: Category;
     createdAt: string;
+    reminderTime?: { hour: number; minute: number } | null; // per-habit reminder
+    archived?: boolean;
 }
 
 export interface TodayStats {
