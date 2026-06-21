@@ -18,6 +18,7 @@ import { CalendarHeatmap } from '../components/CalendarHeatmap';
 import { AnimatedButton } from '../components/AnimatedButton';
 import { LevelUpModal } from '../components/LevelUpModal';
 import { AchievementToast } from '../components/AchievementToast';
+import { NoteJournalModal, MOODS } from '../components/NoteJournalModal';
 import { isStreakAtRisk } from '../utils/streakUtils';
 import { formatDate } from '../utils/dateUtils';
 import { TODAY } from '../utils/dateUtils';
@@ -33,13 +34,16 @@ interface Props {
 export function HabitDetailScreen({ navigation, route }: Props) {
     const theme = useTheme();
     const haptics = useHaptics();
-    const { getHabitById, deleteHabit, markComplete, unmarkComplete, getActiveHabits } = useHabitStore();
+    const { getHabitById, deleteHabit, markComplete, unmarkComplete, getActiveHabits, addNote } = useHabitStore();
     const addXP = useUserStore((s) => s.addXP);
     const profile = useUserStore((s) => s.profile);
     const checkAchievements = useUserStore((s) => s.checkAchievements);
 
     const [levelUpData, setLevelUpData] = useState<{ level: number; title: string } | null>(null);
     const [unlockedId, setUnlockedId] = useState<string | null>(null);
+    const [journalModalVisible, setJournalModalVisible] = useState(false);
+    const [editingDate, setEditingDate] = useState<string>(TODAY());
+    const [showAllNotes, setShowAllNotes] = useState(false);
 
     const habit = getHabitById(route.params.habitId);
 
@@ -94,12 +98,31 @@ export function HabitDetailScreen({ navigation, route }: Props) {
         );
     };
 
-    // Recent notes — last 5 days that have notes
-    const recentNotes = Object.entries(habit.notes ?? {})
-        .sort(([a], [b]) => b.localeCompare(a))
-        .slice(0, 5);
+    const openJournalFor = (date: string) => {
+        setEditingDate(date);
+        setJournalModalVisible(true);
+    };
+
+    const handleSaveNote = (note: string, mood: string) => {
+        addNote(habit.id, editingDate, note, mood);
+    };
+
+    // All notes sorted newest first
+    const allNotes = Object.entries(habit.notes ?? {})
+        .sort(([a], [b]) => b.localeCompare(a));
+
+    // Dates that are completed but have no notes — for "journal missing" indicators
+    const completedWithoutNote = habit.completedDates
+        .filter((d) => !(habit.notes ?? {})[d])
+        .sort((a, b) => b.localeCompare(a))
+        .slice(0, 3);
+
+    const displayedNotes = showAllNotes ? allNotes : allNotes.slice(0, 5);
 
     const unlockedAchievement = unlockedId ? ACHIEVEMENTS.find((a) => a.id === unlockedId) : null;
+
+    const todayNote = habit.notes?.[today];
+    const todayMood = habit.moods?.[today];
 
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -173,6 +196,46 @@ export function HabitDetailScreen({ navigation, route }: Props) {
                             </>
                         )}
                     </TouchableOpacity>
+
+                    {/* Today's journal entry shortcut */}
+                    {isCompletedToday && (
+                        <TouchableOpacity
+                            onPress={() => openJournalFor(today)}
+                            style={[
+                                styles.journalTodayBtn,
+                                {
+                                    backgroundColor: theme.colors.card,
+                                    borderColor: todayNote ? habit.color + '50' : theme.colors.border,
+                                },
+                            ]}
+                            activeOpacity={0.8}
+                        >
+                            <View style={[styles.journalBtnLeft, { backgroundColor: habit.color + '15' }]}>
+                                <Text style={{ fontSize: 16 }}>
+                                    {todayMood || '📝'}
+                                </Text>
+                            </View>
+                            <View style={styles.journalBtnContent}>
+                                <Text style={[styles.journalBtnTitle, { color: theme.colors.textPrimary }]}>
+                                    {todayNote ? 'Today\'s Journal Entry' : 'Add Today\'s Note'}
+                                </Text>
+                                {todayNote ? (
+                                    <Text style={[styles.journalBtnSub, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                        {todayNote}
+                                    </Text>
+                                ) : (
+                                    <Text style={[styles.journalBtnSub, { color: theme.colors.textTertiary }]}>
+                                        What did you do today?
+                                    </Text>
+                                )}
+                            </View>
+                            <Ionicons
+                                name={todayNote ? 'pencil-outline' : 'add-circle-outline'}
+                                size={18}
+                                color={todayNote ? habit.color : theme.colors.textTertiary}
+                            />
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {/* Stats row */}
@@ -208,18 +271,125 @@ export function HabitDetailScreen({ navigation, route }: Props) {
                     </View>
                 </View>
 
-                {/* Notes */}
-                {recentNotes.length > 0 && (
-                    <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>📝 Recent Notes</Text>
-                        {recentNotes.map(([date, note]) => (
-                            <View key={date} style={[styles.noteRow, { borderBottomColor: theme.colors.border }]}>
-                                <Text style={[styles.noteDate, { color: theme.colors.textTertiary }]}>{formatDate(date)}</Text>
-                                <Text style={[styles.noteContent, { color: theme.colors.textPrimary }]}>{note}</Text>
+                {/* ── Journal section ── */}
+                <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <View style={styles.journalHeader}>
+                        <View style={styles.journalTitleRow}>
+                            <Ionicons name="journal" size={16} color={habit.color} />
+                            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary, marginBottom: 0 }]}>
+                                Journal
+                            </Text>
+                            <View style={[styles.journalCountBadge, { backgroundColor: habit.color + '20' }]}>
+                                <Text style={[styles.journalCountText, { color: habit.color }]}>
+                                    {allNotes.length}
+                                </Text>
                             </View>
-                        ))}
+                        </View>
+                        <TouchableOpacity
+                            onPress={() => openJournalFor(today)}
+                            style={[styles.addEntryBtn, { backgroundColor: habit.color + '15', borderColor: habit.color + '40' }]}
+                        >
+                            <Ionicons name="add" size={14} color={habit.color} />
+                            <Text style={[styles.addEntryText, { color: habit.color }]}>Add</Text>
+                        </TouchableOpacity>
                     </View>
-                )}
+
+                    {allNotes.length === 0 ? (
+                        <View style={styles.emptyJournal}>
+                            <Text style={{ fontSize: 32, marginBottom: 8 }}>📖</Text>
+                            <Text style={[styles.emptyJournalTitle, { color: theme.colors.textSecondary }]}>
+                                No journal entries yet
+                            </Text>
+                            <Text style={[styles.emptyJournalSub, { color: theme.colors.textTertiary }]}>
+                                Complete this habit and add a note to start your journal
+                            </Text>
+                        </View>
+                    ) : (
+                        <>
+                            {displayedNotes.map(([date, note], index) => {
+                                const mood = habit.moods?.[date];
+                                const moodData = mood ? MOODS.find((m) => m.emoji === mood) : null;
+                                const isLast = index === displayedNotes.length - 1;
+                                return (
+                                    <View key={date}>
+                                        <View style={styles.journalEntry}>
+                                            {/* Timeline line */}
+                                            {!isLast && (
+                                                <View style={[styles.timelineLine, { backgroundColor: theme.colors.border }]} />
+                                            )}
+                                            {/* Mood dot */}
+                                            <View
+                                                style={[
+                                                    styles.timelineDot,
+                                                    {
+                                                        backgroundColor: moodData ? moodData.color + '30' : habit.color + '20',
+                                                        borderColor: moodData ? moodData.color : habit.color + '50',
+                                                    },
+                                                ]}
+                                            >
+                                                <Text style={styles.timelineDotEmoji}>
+                                                    {mood || '✍️'}
+                                                </Text>
+                                            </View>
+                                            {/* Content */}
+                                            <View style={styles.entryContent}>
+                                                <View style={styles.entryHeader}>
+                                                    <Text style={[styles.entryDate, { color: theme.colors.textTertiary }]}>
+                                                        {formatDate(date)}
+                                                    </Text>
+                                                    {moodData && (
+                                                        <View style={[styles.moodPill, { backgroundColor: moodData.color + '20' }]}>
+                                                            <Text style={[styles.moodPillText, { color: moodData.color }]}>
+                                                                {moodData.emoji} {moodData.label}
+                                                            </Text>
+                                                        </View>
+                                                    )}
+                                                    <TouchableOpacity
+                                                        onPress={() => openJournalFor(date)}
+                                                        style={styles.editEntryBtn}
+                                                    >
+                                                        <Ionicons name="pencil-outline" size={12} color={theme.colors.textTertiary} />
+                                                    </TouchableOpacity>
+                                                </View>
+                                                <Text style={[styles.entryNote, { color: theme.colors.textPrimary }]}>
+                                                    {note}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                );
+                            })}
+
+                            {allNotes.length > 5 && (
+                                <TouchableOpacity
+                                    onPress={() => setShowAllNotes(!showAllNotes)}
+                                    style={[styles.showMoreBtn, { borderTopColor: theme.colors.border }]}
+                                >
+                                    <Text style={[styles.showMoreText, { color: theme.colors.primary }]}>
+                                        {showAllNotes
+                                            ? 'Show less'
+                                            : `Show all ${allNotes.length} entries`}
+                                    </Text>
+                                    <Ionicons
+                                        name={showAllNotes ? 'chevron-up' : 'chevron-down'}
+                                        size={14}
+                                        color={theme.colors.primary}
+                                    />
+                                </TouchableOpacity>
+                            )}
+                        </>
+                    )}
+
+                    {/* Completed days without notes */}
+                    {completedWithoutNote.length > 0 && (
+                        <View style={[styles.missingNotesBanner, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+                            <Ionicons name="time-outline" size={14} color={theme.colors.textTertiary} />
+                            <Text style={[styles.missingNotesText, { color: theme.colors.textTertiary }]}>
+                                {completedWithoutNote.length} completed day{completedWithoutNote.length > 1 ? 's' : ''} without notes
+                            </Text>
+                        </View>
+                    )}
+                </View>
 
                 {/* Info */}
                 <View style={[styles.section, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -239,6 +409,10 @@ export function HabitDetailScreen({ navigation, route }: Props) {
                     <View style={styles.infoRow}>
                         <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>XP Reward</Text>
                         <Text style={[styles.infoValue, { color: theme.colors.primary }]}>+{habit.xpReward} per completion</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                        <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>Journal Entries</Text>
+                        <Text style={[styles.infoValue, { color: habit.color }]}>{allNotes.length} entries</Text>
                     </View>
                     {habit.reminderTime && (
                         <View style={styles.infoRow}>
@@ -262,6 +436,19 @@ export function HabitDetailScreen({ navigation, route }: Props) {
                 </View>
                 <View style={{ height: 40 }} />
             </ScrollView>
+
+            {/* Journal Modal */}
+            <NoteJournalModal
+                visible={journalModalVisible}
+                onClose={() => setJournalModalVisible(false)}
+                onSave={handleSaveNote}
+                habitTitle={habit.title}
+                habitColor={habit.color}
+                habitIcon={habit.icon}
+                date={editingDate}
+                existingNote={habit.notes?.[editingDate] ?? ''}
+                existingMood={habit.moods?.[editingDate] ?? ''}
+            />
 
             {levelUpData && (
                 <LevelUpModal
@@ -295,7 +482,7 @@ const styles = StyleSheet.create({
     badge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 99 },
     badgeText: { fontSize: 12, fontWeight: '700' },
 
-    completeSection: { paddingHorizontal: 16, marginBottom: 12 },
+    completeSection: { paddingHorizontal: 16, marginBottom: 12, gap: 10 },
     completeBtn: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -307,6 +494,22 @@ const styles = StyleSheet.create({
     },
     completeBtnText: { fontSize: 16, fontWeight: '700' },
     completeBtnSub: { fontSize: 11, marginLeft: -4 },
+
+    journalTodayBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        padding: 14,
+        borderRadius: 16,
+        borderWidth: 1,
+    },
+    journalBtnLeft: {
+        width: 40, height: 40, borderRadius: 12,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    journalBtnContent: { flex: 1 },
+    journalBtnTitle: { fontSize: 13, fontWeight: '700' },
+    journalBtnSub: { fontSize: 11, marginTop: 2 },
 
     statsRow: { flexDirection: 'row', paddingHorizontal: 12, gap: 8, marginBottom: 12 },
     statCard: { flex: 1, borderRadius: 16, borderWidth: 1, padding: 14, alignItems: 'center', gap: 6 },
@@ -323,9 +526,62 @@ const styles = StyleSheet.create({
     infoLabel: { fontSize: 14, fontWeight: '500' },
     infoValue: { fontSize: 14, fontWeight: '600' },
 
-    noteRow: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-    noteDate: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
-    noteContent: { fontSize: 13, lineHeight: 20 },
+    // Journal styles
+    journalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+    journalTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    journalCountBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99 },
+    journalCountText: { fontSize: 11, fontWeight: '700' },
+    addEntryBtn: {
+        flexDirection: 'row', alignItems: 'center', gap: 4,
+        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 99, borderWidth: 1,
+    },
+    addEntryText: { fontSize: 12, fontWeight: '700' },
+
+    emptyJournal: { alignItems: 'center', paddingVertical: 20 },
+    emptyJournalTitle: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
+    emptyJournalSub: { fontSize: 12, textAlign: 'center', lineHeight: 18 },
+
+    journalEntry: {
+        flexDirection: 'row',
+        gap: 12,
+        paddingBottom: 16,
+        position: 'relative',
+    },
+    timelineLine: {
+        position: 'absolute',
+        left: 18,
+        top: 36,
+        bottom: 0,
+        width: 1.5,
+    },
+    timelineDot: {
+        width: 36, height: 36,
+        borderRadius: 18,
+        borderWidth: 1.5,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+    },
+    timelineDotEmoji: { fontSize: 15 },
+    entryContent: { flex: 1, paddingTop: 6 },
+    entryHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+    entryDate: { fontSize: 11, fontWeight: '600', flex: 1 },
+    moodPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 },
+    moodPillText: { fontSize: 10, fontWeight: '700' },
+    editEntryBtn: { padding: 2 },
+    entryNote: { fontSize: 13, lineHeight: 20 },
+
+    showMoreBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 6, paddingTop: 12, marginTop: 4, borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    showMoreText: { fontSize: 13, fontWeight: '600' },
+
+    missingNotesBanner: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        marginTop: 12, padding: 10, borderRadius: 10, borderWidth: 1,
+    },
+    missingNotesText: { fontSize: 11, fontWeight: '500' },
 
     actions: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 4 },
 });

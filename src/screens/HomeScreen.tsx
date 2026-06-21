@@ -85,20 +85,30 @@ export function HomeScreen({ navigation }: Props) {
                         <Text style={[styles.greeting, { color: theme.colors.textSecondary }]}>{greeting} 👋</Text>
                         <Text style={[styles.heroName, { color: theme.colors.textPrimary }]}>{profile.name || 'Achiever'}</Text>
                     </View>
-                    <TouchableOpacity
-                        style={[styles.avatarWrap, { backgroundColor: theme.colors.primary + '25' }]}
-                        onPress={() => navigation.navigate('Profile')}
-                    >
-                        <LinearGradient
-                            colors={theme.colors.gradientPrimary}
-                            style={StyleSheet.absoluteFillObject}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                        />
-                        <Text style={styles.avatarInner}>
-                            {profile.name?.charAt(0)?.toUpperCase() || '?'}
-                        </Text>
-                    </TouchableOpacity>
+                    <View style={styles.heroTopRight}>
+                        {/* Journal shortcut */}
+                        <TouchableOpacity
+                            style={[styles.journalBtn, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+                            onPress={() => navigation.navigate('Journal')}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name="journal-outline" size={18} color={theme.colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.avatarWrap, { backgroundColor: theme.colors.primary + '25' }]}
+                            onPress={() => navigation.navigate('Profile')}
+                        >
+                            <LinearGradient
+                                colors={theme.colors.gradientPrimary}
+                                style={StyleSheet.absoluteFillObject}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                            />
+                            <Text style={styles.avatarInner}>
+                                {profile.name?.charAt(0)?.toUpperCase() || '?'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
                 <View style={styles.xpWrap}>
                     <XPBar xp={profile.totalXP} />
@@ -293,8 +303,14 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     heroHeader: { paddingTop: 52, paddingHorizontal: 20, paddingBottom: 16 },
     heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    heroTopRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     greeting: { fontSize: 13, fontWeight: '500', marginBottom: 4 },
     heroName: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+    journalBtn: {
+        width: 40, height: 40, borderRadius: 12,
+        alignItems: 'center', justifyContent: 'center',
+        borderWidth: 1,
+    },
     avatarWrap: {
         width: 44, height: 44, borderRadius: 14,
         alignItems: 'center', justifyContent: 'center', overflow: 'hidden',

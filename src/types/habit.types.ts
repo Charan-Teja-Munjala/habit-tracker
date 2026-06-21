@@ -9,6 +9,7 @@ export interface Habit {
     customDays?: number[]; // 0=Sunday..6=Saturday
     completedDates: string[]; // ISO YYYY-MM-DD
     notes?: Record<string, string>; // date → note text
+    moods?: Record<string, string>; // date → mood emoji
     streak: number;
     longestStreak: number;
     xpReward: number;

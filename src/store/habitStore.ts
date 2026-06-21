@@ -14,16 +14,16 @@ interface HabitStore {
     isLoading: boolean;
 
     // CRUD
-    addHabit: (habit: Omit<Habit, 'id' | 'completedDates' | 'streak' | 'longestStreak' | 'createdAt' | 'notes'>) => string;
+    addHabit: (habit: Omit<Habit, 'id' | 'completedDates' | 'streak' | 'longestStreak' | 'createdAt' | 'notes' | 'moods'>) => string;
     editHabit: (id: string, updates: Partial<Habit>) => void;
     deleteHabit: (id: string) => void;
     archiveHabit: (id: string) => void;
     reorderHabits: (from: number, to: number) => void;
 
     // Completion
-    markComplete: (id: string, currentXP: number, note?: string) => { xpEarned: number; newStreak: number; leveledUp: boolean; newLevel: number };
+    markComplete: (id: string, currentXP: number, note?: string, mood?: string) => { xpEarned: number; newStreak: number; leveledUp: boolean; newLevel: number };
     unmarkComplete: (id: string) => void;
-    addNote: (id: string, date: string, note: string) => void;
+    addNote: (id: string, date: string, note: string, mood?: string) => void;
 
     // Selectors
     getTodayStats: () => TodayStats;
@@ -45,6 +45,7 @@ export const useHabitStore = create<HabitStore>()(
                     id,
                     completedDates: [],
                     notes: {},
+                    moods: {},
                     streak: 0,
                     longestStreak: 0,
                     createdAt: new Date().toISOString(),
@@ -84,7 +85,7 @@ export const useHabitStore = create<HabitStore>()(
                 });
             },
 
-            markComplete: (id, currentXP, note) => {
+            markComplete: (id, currentXP, note, mood) => {
                 const today = TODAY();
                 let xpEarned = 0;
                 let newStreak = 0;
@@ -100,7 +101,10 @@ export const useHabitStore = create<HabitStore>()(
                         const newNotes = note
                             ? { ...(h.notes ?? {}), [today]: note }
                             : h.notes ?? {};
-                        return { ...h, completedDates: newDates, streak, longestStreak, notes: newNotes };
+                        const newMoods = mood
+                            ? { ...(h.moods ?? {}), [today]: mood }
+                            : h.moods ?? {};
+                        return { ...h, completedDates: newDates, streak, longestStreak, notes: newNotes, moods: newMoods };
                     }),
                 }));
 
@@ -128,11 +132,19 @@ export const useHabitStore = create<HabitStore>()(
                 }));
             },
 
-            addNote: (id, date, note) => {
+            addNote: (id, date, note, mood) => {
                 set((state) => ({
                     habits: state.habits.map((h) => {
                         if (h.id !== id) return h;
-                        return { ...h, notes: { ...(h.notes ?? {}), [date]: note } };
+                        const newNotes = note.trim()
+                            ? { ...(h.notes ?? {}), [date]: note }
+                            : { ...(h.notes ?? {}) };
+                        if (!note.trim()) delete newNotes[date];
+                        const newMoods = mood
+                            ? { ...(h.moods ?? {}), [date]: mood }
+                            : { ...(h.moods ?? {}) };
+                        if (!mood) delete newMoods[date];
+                        return { ...h, notes: newNotes, moods: newMoods };
                     }),
                 }));
             },

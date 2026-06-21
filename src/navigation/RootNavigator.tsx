@@ -16,6 +16,7 @@ import { AchievementsScreen } from '../screens/AchievementsScreen';
 import { AddHabitScreen } from '../screens/AddHabitScreen';
 import { HabitDetailScreen } from '../screens/HabitDetailScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
+import { JournalScreen } from '../screens/JournalScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -83,6 +84,7 @@ function MainStack() {
             <Stack.Screen name="Tabs" component={MainTabs} />
             <Stack.Screen name="AddHabit" component={AddHabitScreen} options={{ presentation: 'modal' }} />
             <Stack.Screen name="HabitDetail" component={HabitDetailScreen as any} />
+            <Stack.Screen name="Journal" component={JournalScreen as any} />
         </Stack.Navigator>
     );
 }

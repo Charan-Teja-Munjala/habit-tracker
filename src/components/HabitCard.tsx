@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -6,11 +6,6 @@ import {
     TouchableOpacity,
     PanResponder,
     Animated as RNAnimated,
-    Modal,
-    TextInput,
-    KeyboardAvoidingView,
-    Platform,
-    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Habit } from '../types';
@@ -20,6 +15,7 @@ import { useHabitStore } from '../store/habitStore';
 import { useUserStore } from '../store/userStore';
 import { StreakCounter } from './StreakCounter';
 import { XPPopup } from './XPPopup';
+import { NoteJournalModal, MOODS } from './NoteJournalModal';
 import { TODAY } from '../utils/dateUtils';
 import { isStreakAtRisk } from '../utils/streakUtils';
 import { ACHIEVEMENTS } from '../constants/habits';
@@ -48,15 +44,47 @@ export function HabitCard({ habit, onPress, onLongPress, onAchievementUnlocked, 
 
     const translateX = useRef(new RNAnimated.Value(0)).current;
     const checkScale = useRef(new RNAnimated.Value(1)).current;
+    const nudgeAnim = useRef(new RNAnimated.Value(0)).current;
 
     const [showXP, setShowXP] = useState(false);
-    const [noteModalVisible, setNoteModalVisible] = useState(false);
-    const [noteText, setNoteText] = useState(habit.notes?.[today] ?? '');
+    const [journalModalVisible, setJournalModalVisible] = useState(false);
+    const [showNudge, setShowNudge] = useState(false);
+    const nudgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Show note nudge after completion (if no note yet for today)
+    useEffect(() => {
+        return () => {
+            if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
+        };
+    }, []);
+
+    const dismissNudge = () => {
+        RNAnimated.timing(nudgeAnim, {
+            toValue: 0,
+            duration: 250,
+            useNativeDriver: true,
+        }).start(() => setShowNudge(false));
+        if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
+    };
+
+    const showNudgeBanner = () => {
+        setShowNudge(true);
+        RNAnimated.spring(nudgeAnim, {
+            toValue: 1,
+            useNativeDriver: true,
+            tension: 60,
+            friction: 10,
+        }).start();
+        nudgeTimer.current = setTimeout(() => {
+            dismissNudge();
+        }, 3500);
+    };
 
     const handleComplete = useCallback(() => {
         if (isCompleted) {
             unmarkComplete(habit.id);
             haptics.light();
+            setShowNudge(false);
             return;
         }
 
@@ -68,7 +96,6 @@ export function HabitCard({ habit, onPress, onLongPress, onAchievementUnlocked, 
             RNAnimated.spring(checkScale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 8 }),
         ]).start();
 
-        // Mark complete with current XP so leveledUp can be computed
         const result = markComplete(habit.id, profile.totalXP);
         const { newLevel, didLevelUp } = addXP(result.xpEarned);
 
@@ -87,6 +114,12 @@ export function HabitCard({ habit, onPress, onLongPress, onAchievementUnlocked, 
         if (newlyUnlocked.length > 0) {
             onAchievementUnlocked?.(newlyUnlocked[0]);
         }
+
+        // Show note nudge if no note for today
+        const hasNote = !!(habit.notes?.[today]);
+        if (!hasNote) {
+            setTimeout(showNudgeBanner, 600);
+        }
     }, [isCompleted, habit.id, profile.totalXP]);
 
     const handleLongPress = () => {
@@ -94,16 +127,12 @@ export function HabitCard({ habit, onPress, onLongPress, onAchievementUnlocked, 
             onLongPress?.(habit);
             return;
         }
-        // Long press on completed habit → add/edit note
-        setNoteText(habit.notes?.[today] ?? '');
-        setNoteModalVisible(true);
+        // Long press on completed habit → open journal modal
+        setJournalModalVisible(true);
     };
 
-    const saveNote = () => {
-        if (noteText.trim()) {
-            addNote(habit.id, today, noteText.trim());
-        }
-        setNoteModalVisible(false);
+    const handleSaveNote = (note: string, mood: string) => {
+        addNote(habit.id, today, note, mood);
     };
 
     const panResponder = useRef(
@@ -126,6 +155,8 @@ export function HabitCard({ habit, onPress, onLongPress, onAchievementUnlocked, 
     ).current;
 
     const todayNote = habit.notes?.[today];
+    const todayMood = habit.moods?.[today];
+    const moodData = todayMood ? MOODS.find((m) => m.emoji === todayMood) : null;
 
     return (
         <View style={styles.wrapper}>
@@ -191,12 +222,29 @@ export function HabitCard({ habit, onPress, onLongPress, onAchievementUnlocked, 
                                 <View style={[styles.categoryPill, { backgroundColor: habit.color + '20' }]}>
                                     <Text style={[styles.categoryText, { color: habit.color }]}>{habit.category}</Text>
                                 </View>
+                                {/* Mood badge */}
+                                {moodData && (
+                                    <View style={[styles.moodBadge, { backgroundColor: moodData.color + '20' }]}>
+                                        <Text style={styles.moodEmoji}>{moodData.emoji}</Text>
+                                    </View>
+                                )}
                             </View>
                             {/* Show note if exists */}
                             {todayNote ? (
-                                <Text style={[styles.noteText, { color: theme.colors.textTertiary }]} numberOfLines={1}>
-                                    💬 {todayNote}
-                                </Text>
+                                <View style={styles.noteRow}>
+                                    <Ionicons name="journal-outline" size={10} color={theme.colors.textTertiary} />
+                                    <Text style={[styles.noteText, { color: theme.colors.textTertiary }]} numberOfLines={1}>
+                                        {' '}{todayNote}
+                                    </Text>
+                                </View>
+                            ) : isCompleted ? (
+                                <TouchableOpacity
+                                    onPress={() => setJournalModalVisible(true)}
+                                    style={styles.addNoteHint}
+                                >
+                                    <Ionicons name="add-circle-outline" size={11} color={habit.color} />
+                                    <Text style={[styles.addNoteText, { color: habit.color }]}>Add a note</Text>
+                                </TouchableOpacity>
                             ) : null}
                         </View>
 
@@ -231,48 +279,57 @@ export function HabitCard({ habit, onPress, onLongPress, onAchievementUnlocked, 
                 </TouchableOpacity>
             </RNAnimated.View>
 
-            {/* Note modal */}
-            <Modal
-                visible={noteModalVisible}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setNoteModalVisible(false)}
-            >
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.modalOverlay}
+            {/* Post-complete nudge banner */}
+            {showNudge && (
+                <RNAnimated.View
+                    style={[
+                        styles.nudgeBanner,
+                        {
+                            backgroundColor: habit.color + '15',
+                            borderColor: habit.color + '40',
+                            opacity: nudgeAnim,
+                            transform: [
+                                {
+                                    translateY: nudgeAnim.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [10, 0],
+                                    }),
+                                },
+                            ],
+                        },
+                    ]}
                 >
-                    <View style={[styles.modalCard, { backgroundColor: theme.colors.card }]}>
-                        <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
-                            Note for Today
-                        </Text>
-                        <TextInput
-                            style={[styles.noteInput, { backgroundColor: theme.colors.surface, color: theme.colors.textPrimary, borderColor: theme.colors.border }]}
-                            placeholder="How did it go? Add a quick note..."
-                            placeholderTextColor={theme.colors.textTertiary}
-                            value={noteText}
-                            onChangeText={setNoteText}
-                            multiline
-                            maxLength={200}
-                            autoFocus
-                        />
-                        <View style={styles.modalBtns}>
-                            <TouchableOpacity
-                                style={[styles.modalBtn, { borderColor: theme.colors.border }]}
-                                onPress={() => setNoteModalVisible(false)}
-                            >
-                                <Text style={{ color: theme.colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.modalBtn, { backgroundColor: habit.color, borderColor: habit.color }]}
-                                onPress={saveNote}
-                            >
-                                <Text style={{ color: '#fff', fontWeight: '700' }}>Save Note</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </KeyboardAvoidingView>
-            </Modal>
+                    <Text style={{ fontSize: 14 }}>📝</Text>
+                    <Text style={[styles.nudgeText, { color: theme.colors.textSecondary }]}>
+                        Want to log what you did?
+                    </Text>
+                    <TouchableOpacity
+                        onPress={() => {
+                            dismissNudge();
+                            setJournalModalVisible(true);
+                        }}
+                        style={[styles.nudgeBtn, { backgroundColor: habit.color }]}
+                    >
+                        <Text style={styles.nudgeBtnText}>Add Note</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={dismissNudge} style={styles.nudgeClose}>
+                        <Ionicons name="close" size={14} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+                </RNAnimated.View>
+            )}
+
+            {/* Journal Modal */}
+            <NoteJournalModal
+                visible={journalModalVisible}
+                onClose={() => setJournalModalVisible(false)}
+                onSave={handleSaveNote}
+                habitTitle={habit.title}
+                habitColor={habit.color}
+                habitIcon={habit.icon}
+                date={today}
+                existingNote={habit.notes?.[today] ?? ''}
+                existingMood={habit.moods?.[today] ?? ''}
+            />
         </View>
     );
 }
@@ -318,7 +375,12 @@ const styles = StyleSheet.create({
     xpText: { fontSize: 10, fontWeight: '700' },
     categoryPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
     categoryText: { fontSize: 10, fontWeight: '600' },
-    noteText: { fontSize: 10, marginTop: 4, fontStyle: 'italic' },
+    moodBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
+    moodEmoji: { fontSize: 11 },
+    noteRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+    noteText: { fontSize: 10, fontStyle: 'italic', flex: 1 },
+    addNoteHint: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
+    addNoteText: { fontSize: 10, fontWeight: '600' },
     riskBadge: { padding: 4, borderRadius: 8, marginRight: 6 },
     checkbox: {
         width: 26, height: 26,
@@ -328,33 +390,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginLeft: 4,
     },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        justifyContent: 'flex-end',
-    },
-    modalCard: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: 24,
-        paddingBottom: 40,
-    },
-    modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 14, textAlign: 'center' },
-    noteInput: {
-        borderWidth: 1,
-        borderRadius: 12,
-        padding: 14,
-        fontSize: 14,
-        minHeight: 90,
-        textAlignVertical: 'top',
-        marginBottom: 16,
-    },
-    modalBtns: { flexDirection: 'row', gap: 10 },
-    modalBtn: {
-        flex: 1,
-        paddingVertical: 13,
-        borderRadius: 12,
-        borderWidth: 1.5,
+    nudgeBanner: {
+        flexDirection: 'row',
         alignItems: 'center',
+        marginHorizontal: 16,
+        marginTop: 4,
+        padding: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+        gap: 8,
     },
+    nudgeText: { flex: 1, fontSize: 12, fontWeight: '500' },
+    nudgeBtn: {
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+    },
+    nudgeBtnText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+    nudgeClose: { padding: 2 },
 });
